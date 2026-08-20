@@ -6,7 +6,6 @@ services:
     environment:
       # Set these in a .env file beside this compose file (gitignored).
       # With PUBQUIZ_PASSWORD empty the site is open to anyone who can reach it.
-      PUBQUIZ_USER: "${PUBQUIZ_USER:-quiz}"
       PUBQUIZ_PASSWORD: "${PUBQUIZ_PASSWORD:?set PUBQUIZ_PASSWORD in .env}"
     volumes:
       - ./data:/app/data

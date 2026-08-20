@@ -129,9 +129,12 @@ writes, so an open instance can have its scoreboard filled with junk. Set
 PUBQUIZ_PASSWORD='something-long' python server.py
 ```
 
-The username defaults to `quiz`; override it with `PUBQUIZ_USER`. With no
-password set the server stays open, which is what you want on localhost — and it
-prints a warning if you bind it to a non-local address without one.
+There are no user accounts — it is one shared password. The browser will still
+show a username box, because that is how Basic auth works; leave it blank (or
+type anything, it is ignored) and put the password in the password box.
+
+With no password set the server stays open, which is what you want on localhost
+— and it prints a warning if you bind it to a non-local address without one.
 
 It is read from the environment rather than a `--password` flag so it does not
 appear in `ps` output or your shell history. For the Docker deploy, put it in a

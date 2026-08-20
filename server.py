@@ -4,9 +4,10 @@ Static files come from web/ and data/; scores are appended to data/scores.json.
 Stdlib only - run it with `python server.py` and open the printed URL.
 
 Set PUBQUIZ_PASSWORD to put HTTP Basic auth in front of everything, which is
-what you want if this is reachable from outside your own machine. The username
-defaults to "quiz" and can be changed with PUBQUIZ_USER. With no password set
-the server is open, which is the sensible default for localhost.
+what you want if this is reachable from outside your own machine. There are no
+user accounts - it is one shared password, and the username the browser asks
+for is ignored. With no password set the server is open, which is the sensible
+default for localhost.
 """
 import argparse
 import base64
@@ -29,9 +30,8 @@ SCORES = os.path.join(DATA, "scores.json")
 REALM = "Kerigorrical Quiz Archive"
 # Read from the environment rather than a CLI flag so the password does not
 # show up in `ps` output or shell history.
-_USER = os.environ.get("PUBQUIZ_USER", "quiz")
 _PASSWORD = os.environ.get("PUBQUIZ_PASSWORD", "")
-CREDENTIALS = ("%s:%s" % (_USER, _PASSWORD)).encode("utf-8") if _PASSWORD else None
+PASSWORD = _PASSWORD.encode("utf-8") if _PASSWORD else None
 
 _lock = threading.Lock()
 
@@ -88,8 +88,13 @@ class Handler(BaseHTTPRequestHandler):
 
     # ----------------------------------------------------------------- auth
     def authorised(self):
-        """True if no password is configured, or the request carries it."""
-        if CREDENTIALS is None:
+        """True if no password is configured, or the request carries it.
+
+        Basic auth always sends "username:password", but there are no accounts
+        here - only the password half is checked and the username is ignored,
+        so it can be left blank at the browser prompt.
+        """
+        if PASSWORD is None:
             return True
         header = self.headers.get("Authorization", "")
         if not header.startswith("Basic "):
@@ -98,8 +103,11 @@ class Handler(BaseHTTPRequestHandler):
             supplied = base64.b64decode(header[6:], validate=True)
         except (binascii.Error, ValueError):
             return False
+        _, sep, password = supplied.partition(b":")
+        if not sep:
+            return False
         # Constant time, so the comparison does not leak the password.
-        return hmac.compare_digest(supplied, CREDENTIALS)
+        return hmac.compare_digest(password, PASSWORD)
 
     def challenge(self):
         body = b"Authentication required."
@@ -221,8 +229,8 @@ def main():
     srv = ThreadingHTTPServer((a.host, a.port), Handler)
     print("Pub quiz server running at http://%s:%d/  (Ctrl+C to stop)"
           % (a.host, a.port))
-    if CREDENTIALS:
-        print("Password protected: HTTP Basic, username %r." % _USER)
+    if PASSWORD:
+        print("Password protected (HTTP Basic; the username is ignored).")
     elif a.host not in ("127.0.0.1", "localhost"):
         # Bound to something reachable from off-box with nothing in the way.
         print("WARNING: no PUBQUIZ_PASSWORD set and bound to %s - anyone who "
