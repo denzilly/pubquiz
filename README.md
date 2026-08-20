@@ -118,40 +118,9 @@ data/scores.json   your scoreboard
 - The server binds to `127.0.0.1` by default. Pass `--host 0.0.0.0` if you want
   other devices on your network to reach it, e.g. to run the quiz from a laptop
   and let people check the scoreboard on their phones.
-
-## Password protection
-
-Anything beyond localhost should have a password on it — the score API accepts
-writes, so an open instance can have its scoreboard filled with junk. Set
-`PUBQUIZ_PASSWORD` and the whole site goes behind HTTP Basic auth:
-
-```bash
-PUBQUIZ_PASSWORD='something-long' python server.py
-```
-
-There are no user accounts — it is one shared password. The browser will still
-show a username box, because that is how Basic auth works; leave it blank (or
-type anything, it is ignored) and put the password in the password box.
-
-With no password set the server stays open, which is what you want on localhost
-— and it prints a warning if you bind it to a non-local address without one.
-
-It is read from the environment rather than a `--password` flag so it does not
-appear in `ps` output or your shell history. For the Docker deploy, put it in a
-`.env` file next to `docker-compose.yml` (gitignored):
-
-```bash
-printf 'PUBQUIZ_PASSWORD=something-long\n' > .env
-```
-
-`docker compose up -d` refuses to start if that variable is missing, so a
-public deploy cannot accidentally come up unprotected. `/healthz` stays
-unauthenticated — it is the container healthcheck and returns nothing but
-liveness.
-
-Basic auth sends the password base64-encoded, not encrypted, so it is only
-meaningful over HTTPS. That is fine behind Caddy or a Cloudflare Tunnel, which
-terminate TLS for you; do not rely on it over plain HTTP.
+- **There is no authentication.** Anyone who can reach the server can read the
+  archive and post a score, so only expose it somewhere you are happy for that
+  to be true. `/healthz` returns liveness for the container healthcheck.
 
 ## Credit
 

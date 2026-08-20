@@ -3,16 +3,11 @@
 Static files come from web/ and data/; scores are appended to data/scores.json.
 Stdlib only - run it with `python server.py` and open the printed URL.
 
-Set PUBQUIZ_PASSWORD to put HTTP Basic auth in front of everything, which is
-what you want if this is reachable from outside your own machine. There are no
-user accounts - it is one shared password, and the username the browser asks
-for is ignored. With no password set the server is open, which is the sensible
-default for localhost.
+The server is unauthenticated: anyone who can reach it can read the archive and
+post a score. That is deliberate for a site shared with friends, but it means
+the scoreboard is only as trustworthy as the people who know the URL.
 """
 import argparse
-import base64
-import binascii
-import hmac
 import json
 import os
 import posixpath
@@ -26,12 +21,6 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(ROOT, "web")
 DATA = os.path.join(ROOT, "data")
 SCORES = os.path.join(DATA, "scores.json")
-
-REALM = "Kerigorrical Quiz Archive"
-# Read from the environment rather than a CLI flag so the password does not
-# show up in `ps` output or shell history.
-_PASSWORD = os.environ.get("PUBQUIZ_PASSWORD", "")
-PASSWORD = _PASSWORD.encode("utf-8") if _PASSWORD else None
 
 _lock = threading.Lock()
 
@@ -86,39 +75,6 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         pass  # keep the console clean; errors still surface below
 
-    # ----------------------------------------------------------------- auth
-    def authorised(self):
-        """True if no password is configured, or the request carries it.
-
-        Basic auth always sends "username:password", but there are no accounts
-        here - only the password half is checked and the username is ignored,
-        so it can be left blank at the browser prompt.
-        """
-        if PASSWORD is None:
-            return True
-        header = self.headers.get("Authorization", "")
-        if not header.startswith("Basic "):
-            return False
-        try:
-            supplied = base64.b64decode(header[6:], validate=True)
-        except (binascii.Error, ValueError):
-            return False
-        _, sep, password = supplied.partition(b":")
-        if not sep:
-            return False
-        # Constant time, so the comparison does not leak the password.
-        return hmac.compare_digest(password, PASSWORD)
-
-    def challenge(self):
-        body = b"Authentication required."
-        self.send_response(401)
-        self.send_header("WWW-Authenticate", 'Basic realm="%s", charset="UTF-8"'
-                         % REALM)
-        self.send_header("Content-Type", "text/plain; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
     # ---------------------------------------------------------------- utils
     def send_json(self, obj, code=200):
         body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
@@ -153,13 +109,9 @@ class Handler(BaseHTTPRequestHandler):
         url = urllib.parse.urlparse(self.path)
         path = url.path
 
-        # Deliberately before the auth check: the container healthcheck must
-        # work without credentials. It exposes nothing but liveness.
+        # Container healthcheck target; returns nothing but liveness.
         if path == "/healthz":
             return self.send_json({"ok": True})
-
-        if not self.authorised():
-            return self.challenge()
 
         if path == "/api/scores":
             q = urllib.parse.parse_qs(url.query).get("quiz", [None])[0]
@@ -184,8 +136,6 @@ class Handler(BaseHTTPRequestHandler):
 
     # ----------------------------------------------------------------- POST
     def do_POST(self):
-        if not self.authorised():
-            return self.challenge()
         if urllib.parse.urlparse(self.path).path != "/api/scores":
             return self.send_json({"error": "not found"}, 404)
         try:
@@ -229,13 +179,6 @@ def main():
     srv = ThreadingHTTPServer((a.host, a.port), Handler)
     print("Pub quiz server running at http://%s:%d/  (Ctrl+C to stop)"
           % (a.host, a.port))
-    if PASSWORD:
-        print("Password protected (HTTP Basic; the username is ignored).")
-    elif a.host not in ("127.0.0.1", "localhost"):
-        # Bound to something reachable from off-box with nothing in the way.
-        print("WARNING: no PUBQUIZ_PASSWORD set and bound to %s - anyone who "
-              "can reach this port can read and write the scoreboard."
-              % a.host)
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
