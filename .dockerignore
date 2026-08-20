@@ -1,0 +1,10 @@
+.git
+.gitignore
+.gitattributes
+.claude
+data/
+__pycache__/
+scrape/__pycache__/
+*.pyc
+*.tmp
+README.md

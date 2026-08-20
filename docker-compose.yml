@@ -1,0 +1,13 @@
+services:
+  pubquiz:
+    build: .
+    container_name: pubquiz
+    restart: unless-stopped
+    volumes:
+      - ./data:/app/data
+    networks:
+      - web
+
+networks:
+  web:
+    external: true
