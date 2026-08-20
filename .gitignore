@@ -9,3 +9,6 @@ data/scores.json
 
 *.tmp
 __pycache__/
+
+# Deploy secrets (PUBQUIZ_PASSWORD).
+.env

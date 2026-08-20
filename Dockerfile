@@ -22,6 +22,6 @@ EXPOSE 8787
 USER pubquiz
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
-  CMD python -c "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://localhost:8787/', timeout=4).status == 200 else 1)"
+  CMD python -c "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://localhost:8787/healthz', timeout=4).status == 200 else 1)"
 
 CMD ["python", "server.py", "--host", "0.0.0.0", "--port", "8787"]
