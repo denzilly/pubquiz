@@ -318,6 +318,47 @@ td.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowra
   background: var(--panel-2);
 }
 
+/* Expandable per-quiz groups: one summary row, details hidden until opened. */
+.caretcol { width: 34px; text-align: center; }
+
+.caret {
+  display: inline-block;
+  color: var(--muted);
+  font-size: 11px;
+  transition: color .12s ease;
+}
+
+tr.summary { cursor: pointer; }
+tr.summary:hover { background: var(--panel-2); }
+tr.summary:hover .caret { color: var(--accent); }
+tr.summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+tr.summary td { border-bottom: 1px solid var(--line); }
+
+.qnum { font-weight: 700; }
+.qname {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 2px;
+  max-width: 340px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+tr.detail { display: none; background: rgba(0, 0, 0, .18); }
+tbody.group.open tr.detail { display: table-row; }
+tbody.group.open tr.summary { background: var(--panel-2); }
+tr.detail td { font-size: 13px; padding-top: 7px; padding-bottom: 7px; }
+tr.detail td:nth-child(2) { color: var(--muted); }
+
+@media (max-width: 640px) {
+  .qname { max-width: 150px; }
+  tr.detail td, tr.summary td { padding-left: 8px; padding-right: 8px; }
+}
+
 @media (max-width: 640px) {
   #app { padding: 16px 12px 30px; }
   .stage img { max-height: calc(100vh - 300px); }

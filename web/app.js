@@ -274,7 +274,7 @@
     function refresh() {
       api("/api/scores?quiz=" + encodeURIComponent(slug)).then(function (rows) {
         board.innerHTML = "";
-        if (rows.length) board.appendChild(scoreTable(rows, "This quiz"));
+        if (rows.length) board.appendChild(flatScoreTable(rows, "This quiz"));
       }).catch(function () {});
     }
 
@@ -354,24 +354,28 @@
   }
 
   // ---------------------------------------------------------- scoreboard
-  function scoreTable(rows, caption) {
+  function pctOf(r) { return r.max ? Math.round(r.score / r.max * 100) : 0; }
+
+  function when(r) { return (r.ts || "").replace("T", " ").slice(0, 16); }
+
+  /** Numeric order from a slug like "quiz-121_5" so quizzes sort naturally. */
+  function quizNum(slug) {
+    var m = /^quiz-(\d+)(_5)?$/.exec(slug || "");
+    return m ? parseFloat(m[1]) + (m[2] ? 0.5 : 0) : -1;
+  }
+
+  /** Flat ranked list for a single quiz - no quiz column, it would repeat. */
+  function flatScoreTable(rows, caption) {
     var tb = el("tbody");
     rows.forEach(function (r, n) {
-      var pct = r.max ? Math.round(r.score / r.max * 100) : 0;
       tb.appendChild(el("tr", {}, [
         el("td", { class: "rank" + (n === 0 ? " top" : "") }, [text("#" + (n + 1))]),
         el("td", {}, [text(r.name)]),
-        el("td", {}, [
-          r.quiz_title
-            ? el("a", { href: "#/quiz/" + r.quiz }, [text(splitTitle(r.quiz_title).num ||
-                r.quiz)])
-            : text(r.quiz)
-        ]),
         el("td", { class: "n" }, [
           text(r.score + " / " + r.max + " "),
-          el("span", { class: "pct" }, [text("(" + pct + "%)")])
+          el("span", { class: "pct" }, [text("(" + pctOf(r) + "%)")])
         ]),
-        el("td", { class: "n pct" }, [text((r.ts || "").replace("T", " ").slice(0, 16))])
+        el("td", { class: "n pct" }, [text(when(r))])
       ]));
     });
     return el("div", { class: "scorewrap" }, [
@@ -379,11 +383,95 @@
       el("table", {}, [
         el("thead", {}, [el("tr", {}, [
           el("th", {}, [text("")]), el("th", {}, [text("Name")]),
-          el("th", {}, [text("Quiz")]), el("th", { class: "n" }, [text("Score")]),
+          el("th", { class: "n" }, [text("Score")]),
           el("th", { class: "n" }, [text("When")])
         ])]),
         tb
       ])
+    ]);
+  }
+
+  /** One row per quiz showing its best score; click to expand the rest. */
+  function groupedScoreboard(rows) {
+    var groups = {};
+    rows.forEach(function (r) {
+      (groups[r.quiz] = groups[r.quiz] || []).push(r);
+    });
+
+    var slugs = Object.keys(groups).sort(function (a, b) {
+      var d = quizNum(b) - quizNum(a);
+      return d !== 0 ? d : a.localeCompare(b);
+    });
+
+    var table = el("table", {}, [
+      el("thead", {}, [el("tr", {}, [
+        el("th", { class: "caretcol" }, [text("")]),
+        el("th", {}, [text("Quiz")]),
+        el("th", {}, [text("Top score")]),
+        el("th", { class: "n" }, [text("Best")]),
+        el("th", { class: "n" }, [text("Entries")])
+      ])])
+    ]);
+
+    slugs.forEach(function (slug) {
+      var list = groups[slug].slice().sort(function (a, b) {
+        return (b.score - a.score) || (a.ts || "").localeCompare(b.ts || "");
+      });
+      var best = list[0];
+      var t = splitTitle(best.quiz_title || slug);
+      var body = el("tbody", { class: "group" });
+
+      var caret = el("span", { class: "caret" }, [text("▸")]);
+      var summary = el("tr", {
+        class: "summary",
+        tabindex: "0",
+        role: "button",
+        "aria-expanded": "false"
+      }, [
+        el("td", { class: "caretcol" }, [caret]),
+        el("td", {}, [
+          el("a", { href: "#/quiz/" + slug, class: "qnum",
+            onclick: function (e) { e.stopPropagation(); } },
+            [text(t.num || slug)]),
+          el("div", { class: "qname" }, [text(t.rest)])
+        ]),
+        el("td", {}, [text(best.name)]),
+        el("td", { class: "n" }, [
+          text(best.score + " / " + best.max + " "),
+          el("span", { class: "pct" }, [text("(" + pctOf(best) + "%)")])
+        ]),
+        el("td", { class: "n pct" }, [text(String(list.length))])
+      ]);
+
+      function toggle() {
+        var open = body.classList.toggle("open");
+        caret.textContent = open ? "▾" : "▸";
+        summary.setAttribute("aria-expanded", open ? "true" : "false");
+      }
+      summary.addEventListener("click", toggle);
+      summary.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); }
+      });
+
+      body.appendChild(summary);
+      list.forEach(function (r, n) {
+        body.appendChild(el("tr", { class: "detail" }, [
+          el("td", { class: "caretcol" }, []),
+          el("td", { class: "rank" + (n === 0 ? " top" : "") }, [text("#" + (n + 1))]),
+          el("td", {}, [text(r.name)]),
+          el("td", { class: "n" }, [
+            text(r.score + " / " + r.max + " "),
+            el("span", { class: "pct" }, [text("(" + pctOf(r) + "%)")])
+          ]),
+          el("td", { class: "n pct" }, [text(when(r))])
+        ]));
+      });
+      table.appendChild(body);
+    });
+
+    return el("div", { class: "scorewrap" }, [
+      el("h2", {}, [text("Best score per quiz — click a row for all entries")]),
+      table
     ]);
   }
 
@@ -393,11 +481,19 @@
     api("/api/scores").then(function (rows) {
       var wrap = el("div");
       wrap.appendChild(el("h1", {}, [text("Scoreboard")]));
+      if (!rows.length) {
+        wrap.appendChild(el("p", { class: "sub" }, [
+          text("No scores yet - play a quiz and submit one.")
+        ]));
+        return render(wrap);
+      }
+      var quizzes = {};
+      rows.forEach(function (r) { quizzes[r.quiz] = 1; });
       wrap.appendChild(el("p", { class: "sub" }, [
-        text(rows.length ? plural(rows.length, "result", "results") + " recorded." :
-          "No scores yet - play a quiz and submit one.")
+        text(plural(rows.length, "result", "results") + " across " +
+          plural(Object.keys(quizzes).length, "quiz", "quizzes") + ".")
       ]));
-      if (rows.length) wrap.appendChild(scoreTable(rows, "All results, best first"));
+      wrap.appendChild(groupedScoreboard(rows));
       render(wrap);
     }).catch(function (e) {
       render(el("div", { class: "empty" }, [text("Could not load scores: " + e.message)]));
