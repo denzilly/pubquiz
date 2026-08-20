@@ -1,0 +1,11 @@
+# Downloaded slide images: large (~5 MB per quiz) and always re-fetchable.
+data/quizzes/
+
+# Derived from whatever has been downloaded on this machine.
+data/index.json
+
+# Local scoreboard.
+data/scores.json
+
+*.tmp
+__pycache__/
